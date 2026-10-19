@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Binge Check for AniList</title>
+<meta name="description" content="See which anime you actually binged, waited on, or burned out on, from your AniList activity history.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+<style>
+:root{--bg:#EDEFF5;--panel:#F8F9FC;--ink:#1B1F3B;--muted:#5E637D;--line:#D5D8E4;
+--binge:#2F5BEA;--binge-soft:#2F5BEA22;--burn:#B4236B;--hold:#1F7A5C;--slow:#8A6A12;--err:#B4236B;
+color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12142A;--panel:#1A1D38;--ink:#E6E8F2;--muted:#9EA3C0;
+--line:#2E3254;--binge:#7C9BFF;--binge-soft:#7C9BFF2B;--burn:#F06AAE;--hold:#4FD1A1;--slow:#E5B94E;--err:#F06AAE;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12142A;--panel:#1A1D38;--ink:#E6E8F2;--muted:#9EA3C0;--line:#2E3254;--binge:#7C9BFF;
+--binge-soft:#7C9BFF2B;--burn:#F06AAE;--hold:#4FD1A1;--slow:#E5B94E;--err:#F06AAE;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Avenir Next","Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:48px 20px 80px}
+h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.05;margin:0 0 .8rem;font-weight:700;letter-spacing:-.025em;max-width:16ch}
+h2{font-size:1.35rem;margin:3rem 0 .3rem;letter-spacing:-.01em}
+p{max-width:68ch}
+.lede{color:var(--muted);font-size:1.08rem;margin:0 0 1.6rem}
+.hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:32px;align-items:end}
+@media (max-width:760px){.hero{grid-template-columns:1fr}}
+.legend{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;font-size:.92rem;color:var(--muted)}
+.legend div{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;padding:6px 0}
+.legend b{color:var(--ink);font-weight:600}
+form{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 .6rem}
+input[type=text]{flex:1 1 240px;font:inherit;font-size:1.05rem;padding:.75rem .95rem;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink)}
+input[type=text]:focus-visible,button:focus-visible,th:focus-visible,summary:focus-visible,label:focus-within{outline:2px solid var(--binge);outline-offset:2px}
+button{font:inherit;font-weight:600;padding:.75rem 1.2rem;border-radius:10px;border:0;background:var(--binge);color:#fff;cursor:pointer}
+button.quiet{background:transparent;color:var(--binge);border:1.5px solid var(--line);font-weight:500;padding:.5rem .9rem}
+button:disabled{opacity:.55;cursor:default}
+.options{display:flex;gap:18px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:.92rem}
+.options label{display:flex;gap:6px;align-items:center;cursor:pointer;border-radius:6px}
+#status{min-height:1.6em;color:var(--muted);margin:.8rem 0 0}
+#status.err{color:var(--err);font-weight:600}
+.note{color:var(--muted);margin:.2rem 0 1rem}
+.wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:.94rem}
+th,td{padding:.55rem .8rem;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+td.t{white-space:normal;min-width:200px}
+tr:last-child td{border-bottom:0}
+th{font-weight:600;color:var(--muted);cursor:pointer;user-select:none}
+th[aria-sort]::after{content:" ↕";opacity:.4}
+td.n{font-variant-numeric:tabular-nums;text-align:right}
+a{color:var(--binge)}
+.strip .axis{stroke:var(--line);stroke-width:1}
+.strip .tick{stroke:var(--muted);stroke-width:1.5;opacity:.55}
+.strip .tick.in{stroke:var(--binge);opacity:1}
+.strip .burstbg{fill:var(--binge-soft)}
+.tag{font-weight:600}
+.tag.binged,.tag.waited{color:var(--binge)}
+.tag.burned{color:var(--burn)}.tag.held,.tag.sped,.tag.finished{color:var(--hold)}.tag.slowed{color:var(--slow)}.tag.in{color:var(--muted)}
+.chain{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;margin:.8rem 0}
+.chain h3{margin:0 0 .4rem;font-size:1.05rem}
+.chain ol{margin:.3rem 0 0;padding-left:1.3rem;color:var(--muted)}
+.chain li span{color:var(--ink)}
+details{margin-top:3.5rem;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1rem 1.2rem}
+summary{cursor:pointer;font-weight:600;border-radius:6px}
+details li{margin:.35rem 0;max-width:72ch}
+footer{margin-top:2rem;color:var(--muted);font-size:.88rem}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:1.4rem}
+@media (prefers-reduced-motion:no-preference){#report{transition:opacity .25s}}
+#report[aria-busy=true]{opacity:.4}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <div>
+      <h1>Find out what you actually binged</h1>
+      <p class="lede">Scores are a mood at the moment you finish a show. This reads your AniList activity instead: which shows you tore through, which ones you waited on and then binged, and which franchises you burned out on.</p>
+      <form id="form" autocomplete="off">
+        <input type="text" id="user" name="user" placeholder="AniList username" aria-label="AniList username" required spellcheck="false">
+        <button type="submit" id="go">Check my list</button>
+      </form>
+      <div class="options">
+        <label><input type="checkbox" id="romaji"> Romaji titles</label>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="legend" aria-label="How to read the timelines">
+      <div><b>Binged</b><span id="demo-binge"></span></div>
+      <div><b>Waited, then binged</b><span id="demo-wait"></span></div>
+      <div><b>Weekly</b><span id="demo-weekly"></span></div>
+    </div>
+  </div>
+
+  <div id="report"></div>
+
+  <details>
+    <summary>How it works and what it can’t see</summary>
+    <ul>
+      <li>Every time you update an episode on AniList, it logs an activity with a timestamp. This page pulls that public history and finds, for each show, the biggest burst of episodes with no break longer than 3 days.</li>
+      <li>A show counts as binged when that burst holds at least 60% of the episodes you watched at 2 or more episodes a day. If you logged an episode at least 14 days before the burst started, it’s “waited, then binged”: the watch-episode-1-on-air, finish-it-later habit that start and finish dates hide.</li>
+      <li>Back-to-back runs are sequels (movies and specials included) that you started within 3 days of finishing the previous entry. A paused or dropped sequel started within 30 days still ends the run, which is how burnout shows up.</li>
+      <li>Slow watches never count against a show. Plenty of reasons to watch slowly have nothing to do with liking it.</li>
+      <li>It can’t see anything added through an import, or from before you started logging on AniList. Episodes logged in a single update are listed separately, since a real binge and catching up on your list look identical there.</li>
+      <li>Everything runs in your browser. Your data is fetched straight from AniList’s public API and cached only in this browser.</li>
+    </ul>
+  </details>
+  <footer>Built on the public AniList API. Not affiliated with AniList.</footer>
+</main>
+
+<script>
+/* ===================== analysis (no DOM) ===================== */
+const DAY = 86400;
+const GAP_DAYS = 3, WAIT_DAYS = 14, BINGE_COVERAGE = 0.6, BINGE_RATE = 2.0;
+const CHAIN_LINK_DAYS = 3, TAIL_LINK_DAYS = 30, STALE_DAYS = 30, MIN_EPISODES = 6;
+
+function epRange(p) {
+  if (!p) return null;
+  const m = /(\d+)\s*-\s*(\d+)|(\d+)/.exec(p);
+  if (!m) return null;
+  if (m[1]) return [+m[1], +m[2]];
+  return [+m[3], +m[3]];
+}
+function dayStart(t) { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function calDays(t0, t1) { return Math.round((dayStart(t1) - dayStart(t0)) / 86400000) + 1; }
+function median(a) { const s = [...a].sort((x, y) => x - y), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
+
+function analyseShow(entry, acts) {
+  const total = entry.media.episodes;
+  const firstSeen = new Map(), perAct = new Map();
+  let endTime = null;
+  for (const a of acts) {
+    const st = (a.status || "").toLowerCase();
+    if (st.startsWith("rewatch")) continue;
+    if (st === "watched episode") {
+      const r = epRange(a.progress);
+      if (r) for (let ep = r[0]; ep <= r[1]; ep++) if (!firstSeen.has(ep)) {
+        firstSeen.set(ep, a.createdAt); perAct.set(a.id, (perAct.get(a.id) || 0) + 1);
+      }
+    } else if (st === "completed") {
+      const top = total || (firstSeen.size ? Math.max(...firstSeen.keys()) : 0);
+      for (let ep = 1; ep <= top; ep++) if (!firstSeen.has(ep)) {
+        firstSeen.set(ep, a.createdAt); perAct.set(a.id, (perAct.get(a.id) || 0) + 1);
+      }
+      endTime = a.createdAt;
+    } else if (st === "paused watching" || st === "dropped") {
+      endTime = a.createdAt;
+    }
+  }
+  const times = [...firstSeen.values()].sort((x, y) => x - y);
+  const res = { total, watched: times.length, times, status: entry.status, repeat: entry.repeat || 0,
+    format: entry.media.format, pattern: "no episode history", burst: null, first: null, last: null };
+  const sa = entry.startedAt || {};
+  const startedTs = sa.year ? Math.floor(new Date(sa.year, (sa.month || 1) - 1, sa.day || 1, 12).getTime() / 1000) : null;
+  res.anchor = times.length ? times[0] : (startedTs || endTime);
+  if (!times.length) return res;
+  res.first = times[0]; res.last = times[times.length - 1];
+
+  const bursts = []; let cur = [times[0]];
+  for (const t of times.slice(1)) {
+    if (t - cur[cur.length - 1] > GAP_DAYS * DAY) { bursts.push(cur); cur = [t]; } else cur.push(t);
+  }
+  bursts.push(cur);
+  const main = bursts.reduce((a, b) => (b.length > a.length ? b : a));
+  const days = calDays(main[0], main[main.length - 1]);
+  res.burst = { eps: main.length, start: main[0], end: main[main.length - 1], days, rate: main.length / days };
+
+  const watched = times.length;
+  const biggest = perAct.size ? Math.max(...perAct.values()) : 0;
+  if (watched < MIN_EPISODES) res.pattern = "short";
+  else if (biggest >= 0.8 * watched) res.pattern = "logged in one go";
+  else if (main.length >= BINGE_COVERAGE * watched && res.burst.rate >= BINGE_RATE) {
+    res.pattern = times[0] <= main[0] - WAIT_DAYS * DAY ? "waited, then binged" : "binged";
+  } else {
+    const gaps = [];
+    for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > DAY / 2) gaps.push((times[i] - times[i - 1]) / DAY);
+    const med = gaps.length ? median(gaps) : 0;
+    res.pattern = med >= 5 && med <= 9 ? "weekly" : "spread out";
+  }
+  return res;
+}
+
+function titleOf(entry, romaji) {
+  const t = entry.media.title;
+  return (romaji ? t.romaji : (t.english || t.romaji)) || "?";
+}
+
+function analyse(data, romaji) {
+  const byMedia = new Map();
+  for (const a of data.activities) {
+    const id = a.media.id;
+    if (!byMedia.has(id)) byMedia.set(id, []);
+    byMedia.get(id).push(a);
+  }
+  for (const v of byMedia.values()) v.sort((a, b) => a.createdAt - b.createdAt || a.id - b.id);
+
+  const shows = new Map();
+  for (const e of data.entries) {
+    const s = analyseShow(e, byMedia.get(e.mediaId) || []);
+    s.title = titleOf(e, romaji); s.id = e.mediaId;
+    shows.set(e.mediaId, s);
+  }
+
+  const rel = new Map(Object.entries(data.relations).map(([k, v]) => [+k, v]));
+  const nxt = new Map(), hasPrev = new Set();
+  function link(windowDays, ok, startOf) {
+    for (const [a, sequels] of rel) {
+      const sa = shows.get(a);
+      if (!sa || !sa.last || nxt.has(a)) continue;
+      let best = null;
+      for (const b of sequels) {
+        const sb = shows.get(b);
+        if (!sb || hasPrev.has(b) || !ok(sb) || !startOf(sb)) continue;
+        const gap = startOf(sb) - sa.last;
+        if (gap >= -DAY && gap <= windowDays * DAY && (!best || gap < best[1])) best = [b, gap];
+      }
+      if (best) { nxt.set(a, best[0]); hasPrev.add(best[0]); }
+    }
+  }
+  link(CHAIN_LINK_DAYS, () => true, sb => sb.first);
+  link(TAIL_LINK_DAYS, sb => sb.status === "PAUSED" || sb.status === "DROPPED", sb => sb.anchor);
+
+  const single = s => (s.total || s.watched) <= 1;
+  const now = data.fetched_at || Date.now() / 1000;
+  const chains = [];
+  for (const start of nxt.keys()) {
+    if (hasPrev.has(start)) continue;
+    const chain = [start]; let cur = start;
+    while (nxt.has(cur) && !chain.includes(nxt.get(cur))) { cur = nxt.get(cur); chain.push(cur); }
+    const seasons = chain.map(m => shows.get(m));
+    if (seasons.length < 3 && seasons.reduce((n, x) => n + x.watched, 0) < 3) continue;
+    const last = seasons[seasons.length - 1];
+    const multi = seasons.filter(x => !single(x) && x.burst);
+    const done = multi.filter(x => x.status === "COMPLETED" || x.status === "REPEATING");
+    let verdict;
+    if (last.status === "PAUSED" || last.status === "DROPPED" ||
+        (last.status === "CURRENT" && now - (last.last || last.anchor || 0) > STALE_DAYS * DAY)) verdict = "burned out";
+    else if (last.status === "CURRENT") verdict = "in progress";
+    else if (done.length >= 2) {
+      const r = done[done.length - 1].burst.rate / done[0].burst.rate;
+      verdict = r >= 1.15 ? "sped up" : r >= 0.75 ? "held pace" : "slowed down";
+    } else if (!multi.length) {
+      const starts = seasons.map(x => x.anchor).filter(Boolean);
+      const gaps = []; for (let i = 1; i < starts.length; i++) gaps.push((starts[i] - starts[i - 1]) / DAY);
+      const earlier = gaps.length > 1 ? median(gaps.slice(0, -1)) : null;
+      verdict = earlier !== null && gaps[gaps.length - 1] > 2 * Math.max(earlier, 1) ? "slowed down" : "held pace";
+    } else verdict = "finished the run";
+    const begin = seasons[0].burst ? seasons[0].burst.start : seasons[0].anchor;
+    const end = Math.max(...seasons.map(x => x.last || x.anchor || begin));
+    chains.push({ seasons, verdict, eps: seasons.reduce((n, x) => n + x.watched, 0), days: calDays(begin, end) });
+  }
+  chains.sort((a, b) => b.eps - a.eps);
+
+  const times = data.activities.map(a => a.createdAt);
+  const coverage = { since: times.length ? Math.min(...times) : null,
+    withHistory: [...shows.values()].filter(s => s.times.length).length, entries: shows.size };
+  return { shows: [...shows.values()], chains, coverage };
+}
+/* ===================== end analysis ===================== */
+
+/* ===================== fetching ===================== */
+const API = "https://graphql.anilist.co";
+const Q_USER = "query($name:String){User(name:$name){id name}}";
+const Q_LIST = `query($userId:Int){MediaListCollection(userId:$userId,type:ANIME){lists{entries{
+  mediaId status progress repeat startedAt{year month day}
+  media{id episodes format title{romaji english}}}}}}`;
+const Q_REL = `query($ids:[Int],$page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}
+  media(id_in:$ids){id relations{edges{relationType node{id type}}}}}}`;
+const Q_ACT = `query($userId:Int,$page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}
+  activities(userId:$userId,type:ANIME_LIST,sort:ID_DESC){
+    ... on ListActivity{id status progress createdAt media{id}}}}}`;
+
+class UserError extends Error {}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let pause = 1000;
+
+async function gql(query, variables) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await sleep(pause);
+    let res;
+    try {
+      res = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables }) });
+    } catch (e) {
+      if (attempt === 5) throw new UserError("Couldn’t reach AniList. Check your connection and try again.");
+      await sleep(3000 * (attempt + 1)); continue;
+    }
+    if (res.status === 429) {
+      const wait = (parseInt(res.headers.get("Retry-After"), 10) || 60) + 1;
+      pause = 2100;
+      setStatus(`AniList asked for a breather. Waiting ${wait} seconds, then picking up where it left off.`);
+      await sleep(wait * 1000); continue;
+    }
+    const body = await res.json().catch(() => null);
+    if (body && body.errors && body.errors.length) {
+      const msg = body.errors[0].message || "";
+      if (res.status === 404 || /not found/i.test(msg)) throw new UserError("AniList doesn’t have a user by that name.");
+      if (/private/i.test(msg)) throw new UserError("That list is private, so AniList won’t share it.");
+      if (res.status >= 500 && attempt < 5) { await sleep(3000 * (attempt + 1)); continue; }
+      throw new UserError(`AniList returned an error: ${msg}`);
+    }
+    if (!res.ok) {
+      if (attempt < 5) { await sleep(3000 * (attempt + 1)); continue; }
+      throw new UserError(`AniList returned HTTP ${res.status}. Try again in a minute.`);
+    }
+    return body.data;
+  }
+  throw new UserError("AniList kept refusing the request. Try again in a few minutes.");
+}
+
+async function fetchAll(name) {
+  setStatus("Looking up your profile…");
+  const user = (await gql(Q_USER, { name })).User;
+  setStatus(`Found ${user.name}. Pulling your list…`);
+  const lists = (await gql(Q_LIST, { userId: user.id })).MediaListCollection.lists;
+  const entries = new Map();
+  for (const l of lists) for (const e of l.entries) entries.set(e.mediaId, e);
+
+  const ids = [...entries.keys()], relations = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    setStatus(`Pulling sequel links (${Math.min(i + 50, ids.length)} of ${ids.length})…`);
+    const chunk = ids.slice(i, i + 50);
+    for (let page = 1; ; page++) {
+      const p = (await gql(Q_REL, { ids: chunk, page })).Page;
+      for (const m of p.media) relations[m.id] = m.relations.edges
+        .filter(e => e.relationType === "SEQUEL" && e.node.type === "ANIME").map(e => e.node.id);
+      if (!p.pageInfo.hasNextPage) break;
+    }
+  }
+
+  const activities = [];
+  for (let page = 1; ; page++) {
+    setStatus(`Pulling activity history: ${activities.length} updates so far…`);
+    const p = (await gql(Q_ACT, { userId: user.id, page })).Page;
+    for (const a of p.activities) if (a && a.media) activities.push(a);
+    if (!p.pageInfo.hasNextPage) break;
+  }
+  return { user, entries: [...entries.values()], relations, activities, fetched_at: Math.floor(Date.now() / 1000) };
+}
+
+/* ===================== rendering ===================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = t => new Date(t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function setStatus(msg, err) { const s = $("status"); s.textContent = msg; s.className = err ? "err" : ""; }
+
+function strip(times, burst, width = 220, h = 22) {
+  if (!times.length) return "";
+  const t0 = times[0], t1 = times[times.length - 1], span = Math.max(t1 - t0, 1);
+  const x = t => (t1 > t0 ? 4 + (t - t0) / span * (width - 8) : width / 2);
+  let out = `<svg class="strip" viewBox="0 0 ${width} ${h}" width="${width}" height="${h}" role="img" aria-label="${times.length} episodes from ${fmt(t0)} to ${fmt(t1)}">`
+    + `<line x1="4" x2="${width - 4}" y1="${h / 2}" y2="${h / 2}" class="axis"/>`;
+  if (burst && t1 > t0) {
+    const x0 = x(burst.start), x1 = x(burst.end);
+    out += `<rect x="${(x0 - 3).toFixed(1)}" y="2" width="${(Math.max(x1 - x0, 0) + 6).toFixed(1)}" height="${h - 4}" rx="4" class="burstbg"/>`;
+  }
+  for (const t of times) {
+    const inb = burst && t >= burst.start && t <= burst.end;
+    out += `<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="5" y2="${h - 5}" class="tick${inb ? " in" : ""}"/>`;
+  }
+  return out + "</svg>";
+}
+
+function demoStrips() {
+  const base = 1700000000;
+  const mk = offs => offs.map(o => base + o * DAY);
+  const binge = mk([0, .1, .3, .5, 1, 1.2, 1.4, 1.6, 2, 2.2, 2.5, 2.8]);
+  const wait = mk([0, 44, 44.2, 44.5, 45, 45.3, 45.6, 46, 46.2, 46.5, 46.8, 47]);
+  const weekly = mk([0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77]);
+  $("demo-binge").innerHTML = strip(binge, { start: binge[0], end: binge[11] }, 180);
+  $("demo-wait").innerHTML = strip(wait, { start: wait[1], end: wait[11] }, 180);
+  $("demo-weekly").innerHTML = strip(weekly, null, 180);
+}
+
+function render(data) {
+  const { shows, chains, coverage } = analyse(data, $("romaji").checked);
+  const name = esc(data.user.name);
+  const ranked = shows.filter(s => s.pattern === "binged" || s.pattern === "waited, then binged")
+    .sort((a, b) => b.burst.eps * Math.sqrt(b.burst.rate) - a.burst.eps * Math.sqrt(a.burst.rate));
+  const bulk = shows.filter(s => s.pattern === "logged in one go");
+  const rewatched = shows.filter(s => s.repeat > 0 || s.status === "REPEATING").sort((a, b) => b.repeat - a.repeat);
+
+  let h = `<h2>${name}’s binges</h2>`;
+  if (coverage.since) h += `<p class="note">Activity history goes back to ${fmt(coverage.since)} and covers ${coverage.withHistory} of ${coverage.entries} list entries. The shaded part of each timeline is the burst; each tick is an episode. Select a column heading to sort.</p>`;
+  h += `<div class="wrap"><table><thead><tr><th>Show</th><th>Timeline</th><th>Burst eps</th><th>Days</th><th>Eps/day</th><th>Burst began</th><th>Pattern</th></tr></thead><tbody>`;
+  h += ranked.length ? ranked.map(s => {
+    const b = s.burst, cls = s.pattern.startsWith("waited") ? "waited" : "binged";
+    return `<tr><td class="t">${esc(s.title)}</td><td>${strip(s.times, b)}</td>`
+      + `<td class="n" data-v="${b.eps}">${b.eps}/${s.total || "?"}</td><td class="n" data-v="${b.days}">${b.days}</td>`
+      + `<td class="n" data-v="${b.rate.toFixed(3)}">${b.rate.toFixed(1)}</td><td data-v="${b.start}">${fmt(b.start)}</td>`
+      + `<td><span class="tag ${cls}">${esc(s.pattern)}</span></td></tr>`;
+  }).join("") : `<tr><td colspan="7">No binges found in your activity history yet.</td></tr>`;
+  h += `</tbody></table></div>`;
+
+  h += `<h2>Back-to-back runs</h2><p class="note">Sequels you started within ${CHAIN_LINK_DAYS} days of finishing the previous entry. How a run ends says more than how long it is.</p>`;
+  if (!chains.length) h += `<p class="note">None found.</p>`;
+  for (const c of chains) {
+    h += `<div class="chain"><h3>${esc(c.seasons[0].title)}: ${c.eps} episodes over ${c.days} days, <span class="tag ${c.verdict.split(" ")[0]}">${esc(c.verdict)}</span></h3><ol>`;
+    for (const s of c.seasons) {
+      const st = esc(s.status.toLowerCase()), b = s.burst;
+      let detail;
+      if (!s.times.length) detail = `no episode history, ${st}`;
+      else if ((s.total || s.watched) <= 1) detail = `watched ${fmt(s.last)}`;
+      else if (b.eps === s.watched) detail = `${s.watched} eps in ${b.days} days (${b.rate.toFixed(1)}/day), ${st}`;
+      else detail = `${s.watched} eps, main burst ${b.eps} in ${b.days} days (${b.rate.toFixed(1)}/day), ${st}`;
+      h += `<li><span>${esc(s.title)}</span>: ${detail}</li>`;
+    }
+    h += `</ol></div>`;
+  }
+
+  if (rewatched.length) {
+    h += `<h2>Rewatched</h2><div class="wrap"><table><thead><tr><th>Show</th><th>Rewatches</th></tr></thead><tbody>`
+      + rewatched.map(s => `<tr><td class="t">${esc(s.title)}</td><td class="n" data-v="${s.repeat}">${s.repeat || "in progress"}</td></tr>`).join("")
+      + `</tbody></table></div>`;
+  }
+  if (bulk.length) {
+    h += `<h2>Logged in one update</h2><p class="note">Most of these episodes were logged at once, so a real binge and catching up on your list look the same.</p>`
+      + `<div class="wrap"><table><thead><tr><th>Show</th><th>Episodes</th><th>Logged</th></tr></thead><tbody>`
+      + bulk.map(s => `<tr><td class="t">${esc(s.title)}</td><td class="n" data-v="${s.watched}">${s.watched}</td><td data-v="${s.last}">${fmt(s.last)}</td></tr>`).join("")
+      + `</tbody></table></div>`;
+  }
+  h += `<div class="toolbar"><button class="quiet" id="share" type="button">Copy link to this report</button>`
+    + `<button class="quiet" id="refresh" type="button">Refresh from AniList</button>`
+    + `<span class="note" style="margin:0">Data pulled ${fmt(data.fetched_at)}</span></div>`;
+
+  $("report").innerHTML = h;
+  $("report").querySelectorAll("table").forEach(sortable);
+  $("share").onclick = async () => {
+    const url = location.origin + location.pathname + "?user=" + encodeURIComponent(data.user.name);
+    try { await navigator.clipboard.writeText(url); $("share").textContent = "Link copied"; }
+    catch { prompt("Copy this link:", url); }
+  };
+  $("refresh").onclick = () => run(data.user.name, true);
+}
+
+function sortable(t) {
+  t.querySelectorAll("th").forEach((th, i) => {
+    th.tabIndex = 0; th.setAttribute("aria-sort", "none");
+    const go = () => {
+      const tb = t.tBodies[0], rows = [...tb.rows], asc = th.dataset.asc !== "1";
+      th.dataset.asc = asc ? "1" : "0";
+      t.querySelectorAll("th").forEach(o => o.setAttribute("aria-sort", "none"));
+      th.setAttribute("aria-sort", asc ? "ascending" : "descending");
+      rows.sort((a, b) => {
+        const x = a.cells[i].dataset.v ?? a.cells[i].textContent, y = b.cells[i].dataset.v ?? b.cells[i].textContent;
+        const nx = parseFloat(x), ny = parseFloat(y);
+        const c = !isNaN(nx) && !isNaN(ny) ? nx - ny : x.localeCompare(y);
+        return asc ? c : -c;
+      });
+      rows.forEach(r => tb.appendChild(r));
+    };
+    th.onclick = go;
+    th.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+}
+
+/* ===================== cache + flow ===================== */
+const cacheKey = n => "bingecheck:" + n.toLowerCase();
+function loadCache(n) { try { const v = localStorage.getItem(cacheKey(n)); return v ? JSON.parse(v) : null; } catch { return null; } }
+function saveCache(n, d) { try { localStorage.setItem(cacheKey(n), JSON.stringify(d)); } catch { /* storage full or blocked: fine */ } }
+
+let current = null, busy = false;
+async function run(name, force) {
+  name = name.trim();
+  if (!name || busy) return;
+  busy = true; $("go").disabled = true; $("report").setAttribute("aria-busy", "true");
+  try {
+    let data = force ? null : loadCache(name);
+    if (!data) {
+      data = await fetchAll(name);
+      saveCache(name, data); saveCache(data.user.name, data);
+    }
+    current = data;
+    render(data);
+    setStatus(`Showing ${data.user.name}’s list.`);
+    history.replaceState(null, "", "?user=" + encodeURIComponent(data.user.name));
+  } catch (e) {
+    setStatus(e instanceof UserError ? e.message : "Something went wrong while reading your list: " + e.message, true);
+    console.error(e);
+  } finally {
+    busy = false; $("go").disabled = false; $("report").removeAttribute("aria-busy");
+  }
+}
+
+$("form").addEventListener("submit", e => { e.preventDefault(); run($("user").value); });
+$("romaji").addEventListener("change", () => { if (current) render(current); });
+demoStrips();
+const fromUrl = new URLSearchParams(location.search).get("user");
+if (fromUrl) { $("user").value = fromUrl; run(fromUrl); }
+</script>
+</body>
+</html>
